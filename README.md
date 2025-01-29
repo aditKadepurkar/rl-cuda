@@ -1,0 +1,2 @@
+# Reincforcement Learning Policies in CUDA from scratch
+Basically trying to improve my CUDA skill, learning how to hyperoptimize stuff, and generally improve the depth of my understanding of RL. And mostly just having fun!
