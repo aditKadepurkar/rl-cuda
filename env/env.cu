@@ -61,6 +61,14 @@ void Environment::reset(float* d_state) {
 // Step function
 void Environment::step(float* action, float* d_next_state, float* d_reward, bool* d_done) {
     step_kernel<<<1, state_size>>>(action, d_state, d_next_state, d_reward, d_done, state_size, action_size);
+    current_step++;
+
+    if (current_step == max_steps) {
+        std::cout << "Episode done." << std::endl;
+        bool h_done = true;
+        cudaMemcpy(d_done, &h_done, sizeof(bool), cudaMemcpyHostToDevice);
+    }
+
 }
 
 

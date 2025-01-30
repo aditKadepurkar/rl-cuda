@@ -26,7 +26,7 @@ private:
     std::vector<int> layerSizes;
 
     std::vector<float*> weights, biases;
-    std::vector<float*> activations; // Stores intermediate outputs
+    std::vector<float*> activations; // intermediate activations(don't actually have this owrking rn)
 
     int numLayers;
 

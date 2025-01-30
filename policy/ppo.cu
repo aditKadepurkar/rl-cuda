@@ -14,6 +14,8 @@ PPO::PPO(Environment* env) {
     this->policy_network = new MLP(layers);
     this->value_network = new MLP(layers);
     this->env = env;
+    this->env_max_steps = env->max_steps;
+    this->rollout_buffer = std::vector<Rollout>(ROLLOUT_BUFFER_SIZE);
 
 }
 
@@ -22,42 +24,104 @@ PPO::PPO(Environment* env, std::vector<int> policy_network_dims, std::vector<int
     this->policy_network = new MLP(policy_network_dims);
     this->value_network = new MLP(value_network_dims);
     this->env = env;
-
+    this->env_max_steps = env->max_steps;
+    this->rollout_buffer = std::vector<Rollout>(ROLLOUT_BUFFER_SIZE);
 }
 
 
 void PPO::train(int num_timesteps) {
-    // TODO: update this function
-    // the current implementation was just a sanity check
 
-    float h_input[128];
-    float h_output[128];
-    float* d_input;
-    float* d_output;
+    std::cout << "Training PPO for " << num_timesteps << " timesteps" << std::endl;
 
-    cudaMalloc(&d_input, 128 * sizeof(float));
-    cudaMalloc(&d_output, 64 * sizeof(float));
-
-    for (int i = 0; i < 128; i++) {
-        h_input[i] = 1.0;
-        h_output[i] = 0.0;
-    }
+    // collect rollouts -- will put this in a loop later, testing for now
+    collect_rollouts();
 
 
-    cudaMemcpy(d_input, &h_input, 128 * sizeof(float), cudaMemcpyHostToDevice);
+    std::cout << "Collected rollouts " << rollout_buffer.size() << std::endl;
 
-    policy_network->forward(d_input, d_output);
+    // std::cout << rollout_buffer[0].states[0] << std::endl;
 
-    std::cout << "Printing output" << std::endl;
-
-    cudaMemcpy(&h_output, d_output, 64 * sizeof(float), cudaMemcpyDeviceToHost);
-
-    for (int i = 0; i < 64; i++) {
-        std::cout << std::fixed << std::setprecision(4) << h_output[i] << " ";
-    }
+    // now we do some training!!!!
 
 
-    cudaFree(d_input);
-    cudaFree(d_output);
 }
 
+void PPO::collect_rollouts() {
+    // this should basically be the actor process
+
+    int action_dim = env->action_size;
+    int state_size = env->state_size;
+
+    // allocate rollout on the host
+    Rollout* rollout = new Rollout();
+    rollout->states = (float*)malloc(env_max_steps * state_size * sizeof(float));
+    rollout->actions = (float*)malloc(env_max_steps * action_dim * sizeof(float));
+    rollout->rewards = (float*)malloc(env_max_steps * sizeof(float));
+    rollout->values = (float*)malloc(env_max_steps * sizeof(float));
+    rollout->log_probs = (float*)malloc(env_max_steps * sizeof(float));
+    rollout->advantages = (float*)malloc(env_max_steps * sizeof(float));
+    rollout->returns = (float*)malloc(env_max_steps * sizeof(float));
+
+    float* d_state;
+    float* d_next_state;
+    float* d_reward;
+    bool* d_done;
+    float* d_action;
+
+    bool h_done;
+
+    cudaMalloc(&d_state, state_size * sizeof(float));
+    cudaMalloc(&d_next_state, state_size * sizeof(float));
+    cudaMalloc(&d_reward, sizeof(float));
+    cudaMalloc(&d_done, sizeof(bool));
+    cudaMalloc(&d_action, action_dim * sizeof(float));
+
+    int step = 0;
+
+    for (int i = 0; i < ROLLOUT_BUFFER_SIZE; i++) {
+        std::cout << "Rollout " << i << std::endl;
+        h_done = false;
+        env->reset(d_state);
+    
+        while (!h_done) {
+
+            // generate action directly on device for now
+            cudaMemset(d_action, 0.1, action_dim * sizeof(float));
+
+            env->step(d_action, d_next_state, d_reward, d_done);
+
+            cudaMemcpy(&h_done, d_done, sizeof(bool), cudaMemcpyDeviceToHost);
+
+            //  adding the rollout data
+            cudaMemcpy(&rollout->states[step * state_size], d_state, state_size * sizeof(float), cudaMemcpyDeviceToHost);
+            cudaMemcpy(&rollout->actions[step * action_dim], d_action, action_dim * sizeof(float), cudaMemcpyDeviceToHost);
+            cudaMemcpy(&rollout->rewards[step], d_reward, sizeof(float), cudaMemcpyDeviceToHost);
+
+            cudaMemcpy(d_state, d_next_state, state_size * sizeof(float), cudaMemcpyDeviceToDevice);
+            step++;
+        }
+        
+        std::cout << "Rollout complete" << std::endl;
+
+        // add rollout data to the buffer
+        rollout_buffer[i] = *rollout;
+
+        step = 0;
+    }
+
+    // free device memory
+    cudaFree(d_state);
+    cudaFree(d_next_state);
+    cudaFree(d_reward);
+    cudaFree(d_done);
+    cudaFree(d_action);
+
+    // free hsot memory
+    // free(rollout.states);
+    // free(rollout.actions);
+    // free(rollout.rewards);
+    // free(rollout.values);
+    // free(rollout.log_probs);
+    // free(rollout.advantages);
+    // free(rollout.returns);
+}

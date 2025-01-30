@@ -48,11 +48,6 @@ void MLP::initializeLayers() {
 
 void MLP::forward(float* input, float* output) {
 
-    // printing all the values in activations
-    for (int i : layerSizes) {
-        std::cout << i << std::endl;
-    }
-
     float* currInput = input;
     float alpha = 1.0f, beta = 0.0f;
 

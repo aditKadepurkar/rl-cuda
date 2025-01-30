@@ -16,12 +16,15 @@ public:
 
     __host__ void reset(float* d_state);
     __host__ void step(float* action, float* d_next_state, float* d_reward, bool* d_done);
-
-private:
     int state_size;
     int action_size;
+    int max_steps = 10;
+
+private:
+    int current_step = 1;
     float* d_state;
     curandState* d_curand_states;
+    bool is_vecenv = false;
 };
 
 

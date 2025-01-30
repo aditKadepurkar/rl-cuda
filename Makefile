@@ -1,5 +1,5 @@
 CC = nvcc
-CFLAGS = -arch=sm_60 -std=c++11 -O2
+CFLAGS = -arch=sm_89 -std=c++11 -O2
 SRC_DIRS = env policy
 OBJ_DIR = build
 TARGET = main
