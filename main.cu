@@ -1,4 +1,5 @@
 #include "env/env.h"
+#include "policy/ppo.h"
 #include <iostream>
 #include <cstdlib>
 #include <iomanip>
@@ -23,11 +24,21 @@ int main() {
     cudaMalloc(&d_done, sizeof(bool));
     cudaMalloc(&d_action, action_dim * sizeof(float));
 
-
+    PPO ppo(&env);
 
     env.reset(d_state);
 
     std::cout << "Environment reset complete." << std::endl;
+
+
+    std::cout << "Training has started." << std::endl;
+    ppo.train(100);
+    std::cout << "Training has finished." << std::endl;
+
+
+
+
+    /* Code to see how the env runs.
 
     float h_state[state_size];
     float h_action[action_dim];
@@ -65,11 +76,15 @@ int main() {
         cudaMemcpy(d_state, d_next_state, state_size * sizeof(float), cudaMemcpyDeviceToDevice);
     }
 
+    std::cout << "Simulation complete." << std::endl;
+
+    */
+
     cudaFree(d_state);
     cudaFree(d_next_state);
     cudaFree(d_reward);
     cudaFree(d_done);
+    cudaFree(d_action);
 
-    std::cout << "Simulation complete." << std::endl;
     return 0;
 }

@@ -1,17 +1,13 @@
 CC = nvcc
 CFLAGS = -arch=sm_60 -std=c++11 -O2
-TARGET = env
 OBJ_DIR = ../build
 
 $(shell mkdir -p $(OBJ_DIR))
 
-all: $(OBJ_DIR)/$(TARGET)
+all: $(OBJ_DIR)/env.o
 
-$(OBJ_DIR)/$(TARGET): env.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/$(TARGET) env.o
-
-env.o: env.cu env.h
-	$(CC) $(CFLAGS) -c env.cu -o env.o
+$(OBJ_DIR)/env.o: env.cu env.h
+	$(CC) $(CFLAGS) -c env.cu -o $(OBJ_DIR)/env.o
 
 clean:
-	rm -f env.o $(OBJ_DIR)/$(TARGET)
+	rm -f $(OBJ_DIR)/env.o

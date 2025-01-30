@@ -7,8 +7,10 @@
 #include <vector>
 #include <curand_kernel.h>
 
+// the env
 class Environment {
 public:
+    // __host__ Environment();
     __host__ Environment(int state_size, int action_size);
     __host__ ~Environment();
 
@@ -22,6 +24,8 @@ private:
     curandState* d_curand_states;
 };
 
+
+// vecenv that doesnt currently have much support
 class VecEnv {
     public:
         __host__ VecEnv(Environment env, int n);
@@ -29,7 +33,7 @@ class VecEnv {
 
         __host__ void reset(float* d_state);
         __host__ void step(float* action, float* d_next_state, float* d_reward, bool* d_done);
-}
+};
 
 // CUDA kernel functions
 __global__ void reset_kernel(float* d_state, int state_size, curandState* d_curand_states);
