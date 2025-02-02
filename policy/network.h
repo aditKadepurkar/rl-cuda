@@ -26,7 +26,7 @@ public:
     void log_prob(float* d_policy_output, float* d_actions, float* d_log_probs);
     void ratio(float* d_new_log_probs, float* d_old_log_probs, float* d_ratios);
     void surrogate_loss(float* d_ratios, float* d_advantages, float* d_surrogate);
-
+    void checkForNaN(float* data, int size);
 
     int output_dim;
     float learning_rate = 1e-3;

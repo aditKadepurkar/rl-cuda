@@ -9,10 +9,13 @@
 
 PPO::PPO(Environment* env) {
     // setup a default network architecture
-    std::vector<int> layers = {128, 256, 128, 64};
+    std::vector<int> layers = {env->state_size, 16, 8, env->action_size};
 
     this->policy_network = new MLP(layers);
     this->value_network = new MLP(layers);
+
+    std::cout << "Value Network Output dim: " << value_network->output_dim << std::endl;
+
     this->env = env;
     this->env_max_steps = env->max_steps;
     this->rollout_buffer = std::vector<Rollout>(ROLLOUT_BUFFER_SIZE);
@@ -31,128 +34,228 @@ PPO::PPO(Environment* env, std::vector<int> policy_network_dims, std::vector<int
 
 void PPO::train(int num_timesteps) {
 
-    std::cout << "Training PPO for " << num_timesteps << " timesteps" << std::endl;
+    int epoch = num_timesteps / env_max_steps;
 
-    // collect rollouts -- will put this in a loop later, testing for now
-    collect_rollouts(); // collect_rollouts
+    int policy_output_dim = policy_network->output_dim;
 
+    // float pi_loss = 0.0f;
 
-    std::cout << "Collected rollouts " << rollout_buffer.size() << std::endl;
+    std::cout << "Training PPO for " << epoch << " epochs" << std::endl;
 
+    for (int i = 0; i < epoch; ++i) {
+        
 
-
-    /* The followign code shows how to access the data in the rollout buffer
-    
-    
-    
-
-    int state_size = env->state_size;
-
-    std::vector<float> example_state(state_size);
-    cudaMemcpy(example_state.data(), rollout_buffer[0].states, state_size * sizeof(float), cudaMemcpyDeviceToHost);
-
-    std::cout << "Example state: ";
-    for (const auto& val : example_state) {
-        std::cout << val << " ";
-    }
-    std::cout << std::endl;
-    */
+        // collect rollouts -- will put this in a loop later, testing for now
+        collect_rollouts(); // collect_rollouts
 
 
-    // now we do some training!!!!
+        // std::cout << "Collected rollouts " << rollout_buffer.size() << std::endl;
 
-    /* Basically my notes sheet for the next steps:
-    - I currently have the rollouts which have all the following:
-        - states
-        - actions
-        - rewards
-        - values
-        - log_probs
-        - advantages
-        - returns
+        std::cout << "Epoch " << i+1 << std::endl;
 
-    Now I just need to do the calculations? I think?
-    
-    
-    */
+        /* The followign code shows how to access the data in the rollout buffer
+        
+        
+        
 
-    float *d_states;
-    float *d_output;
-    float *d_new_log_probs;
-    float *d_old_log_probs;
+        int state_size = env->state_size;
 
-    Rollout& rollout = rollout_buffer[0];
+        std::vector<float> example_state(state_size);
+        cudaMemcpy(example_state.data(), rollout_buffer[0].states, state_size * sizeof(float), cudaMemcpyDeviceToHost);
 
-
-    cudaMalloc(&d_old_log_probs, env_max_steps * sizeof(float));
-    cudaMalloc(&d_states, env_max_steps * env->state_size * sizeof(float));
-    cudaMalloc(&d_output, policy_network->output_dim * sizeof(float));
-    policy_network->forward(rollout.states, d_output);
-    policy_network->log_prob(d_output, rollout.actions, d_old_log_probs);
-
-    cudaMalloc(&d_new_log_probs, sizeof(float) * policy_network->output_dim);
-
-    // int state_size = env->state_size;
-    // int action_dim = env->action_size;
-
-    for (int i = 0; i < ROLLOUT_BUFFER_SIZE; ++i) {
-        std::cout << "Training on rollout " << i << std::endl;
-
-        rollout = rollout_buffer[i];
-
-        // get new log probs
-        policy_network->forward(rollout.states, d_output);
-        policy_network->log_prob(d_output, rollout.actions, d_new_log_probs);
-
-        // r_t(theta) = pi_theta(a_t | s_t) / pi_theta_old(a_t | s_t)
-        float *d_ratios;
-        cudaMalloc(&d_ratios, env_max_steps * sizeof(float));
-        policy_network->ratio(d_new_log_probs, d_old_log_probs, d_ratios);
-
-
-        float *d_surrogate;
-        cudaMalloc(&d_surrogate, env_max_steps * sizeof(float));
-        policy_network->surrogate_loss(d_ratios, rollout.advantages, d_surrogate);
-
-
-        // update the parameters 
-        policy_network->backward(d_surrogate, policy_network->learning_rate);
-
-        float *d_value_grads;
-        cudaMalloc(&d_value_grads, env_max_steps * sizeof(float));
-
-        // caclulating the value grad with teh new func i made which I hope works correctly
-        compute_value_grad(rollout.values, rollout.returns, d_value_grads, env_max_steps);
-
-        value_network->backward(d_value_grads, value_network->learning_rate);
-
-
-        // print d_value_grads and d_surrogate
-        std::vector<float> h_value_grads(env_max_steps);
-        std::vector<float> h_surrogate(env_max_steps);
-
-        cudaMemcpy(h_value_grads.data(), d_value_grads, env_max_steps * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(h_surrogate.data(), d_surrogate, env_max_steps * sizeof(float), cudaMemcpyDeviceToHost);
-
-        // std::cout << "Value grads: ";
-        // for (const auto& val : h_value_grads) {
-        //     std::cout << val << " ";
-        // }
-        // std::cout << std::endl;
-
-        std::cout << "Surrogate: ";
-        for (const auto& val : h_surrogate) {
+        std::cout << "Example state: ";
+        for (const auto& val : example_state) {
             std::cout << val << " ";
         }
         std::cout << std::endl;
+        */
 
-        // Free allocated memory
-        cudaFree(d_ratios);
-        cudaFree(d_surrogate);
+
+        // now we do some training!!!!
+
+        /* Basically my notes sheet for the next steps:
+        - I currently have the rollouts which have all the following:
+            - states
+            - actions
+            - rewards
+            - values
+            - log_probs
+            - advantages
+            - returns
+
+        Now I just need to do the calculations? I think?
+        
+        
+        */
+
+        float *d_states;
+        float *d_output;
+        float *d_new_log_probs;
+        float *d_old_log_probs;
+
+        Rollout& rollout = rollout_buffer[0];
+
+
+        cudaMalloc(&d_old_log_probs, env_max_steps * sizeof(float));
+        cudaMemset(d_old_log_probs, 0, env_max_steps * sizeof(float));
+
+        cudaMalloc(&d_states, env_max_steps * env->state_size * sizeof(float));
+        cudaMalloc(&d_output, policy_output_dim * sizeof(float));
+
+        cudaMemcpy(&d_states, rollout.states, env_max_steps * env->state_size * sizeof(float), cudaMemcpyDeviceToDevice);
+
+        policy_network->forward(d_states, d_output);
+
+        // check if d_output or rollout.states is NaN
+        
+        // float h_output[policy_output_dim];
+        // cudaMemcpy(h_output, d_output, policy_output_dim * sizeof(float), cudaMemcpyDeviceToHost);
+
+        // for (int j = 0; j < policy_output_dim; ++j) {
+        //     if (std::isnan(h_output[j])) {
+        //         std::cout << "Output is NaN" << std::endl;
+        //         exit(1);
+        //     }
+        // }
+
+
+        policy_network->log_prob(d_output, rollout.actions, d_old_log_probs);
+
+        cudaMalloc(&d_new_log_probs, sizeof(float) * policy_output_dim);
+
+        // int state_size = env->state_size;
+        
+
+        for (int j = 0; j < ROLLOUT_BUFFER_SIZE; ++j) {
+            // std::cout << "Training on rollout " << j << std::endl;
+
+            rollout = rollout_buffer[j];
+
+            // get new log probs
+            policy_network->forward(rollout.states, d_output);
+            policy_network->log_prob(d_output, rollout.actions, d_new_log_probs);
+
+            // check if new and old log probs are NaN
+            // float h_old_log_probs[env_max_steps];
+            // float h_new_log_probs[env_max_steps];
+            // cudaMemcpy(h_old_log_probs, d_old_log_probs, env_max_steps * sizeof(float), cudaMemcpyDeviceToHost);
+            // cudaMemcpy(h_new_log_probs, d_new_log_probs, env_max_steps * sizeof(float), cudaMemcpyDeviceToHost);
+
+            // for (int k = 0; k < env_max_steps; ++k) {
+            //     if (std::isnan(h_old_log_probs[k])) {
+            //         std::cout << "Old log probs are NaN" << std::endl;
+            //         exit(1);
+            //     }
+            //     // if (std::isnan(h_new_log_probs[i])) {
+            //     //     std::cout << "New log probs are NaN" << std::endl;
+            //     //     exit(1);
+            //     // }
+            // }
+
+            // r_t(theta) = pi_theta(a_t | s_t) / pi_theta_old(a_t | s_t)
+            float *d_ratios;
+            cudaMalloc(&d_ratios, policy_output_dim * sizeof(float));
+            policy_network->ratio(d_new_log_probs, d_old_log_probs, d_ratios);
+
+
+/*
+            // check if any ratios or advnatages are NaN
+            float h_ratios[policy_output_dim];
+            cudaMemcpy(h_ratios, d_ratios, policy_output_dim * sizeof(float), cudaMemcpyDeviceToHost);
+
+            for (int i = 0; i < policy_output_dim; ++i) {
+                if (std::isnan(h_ratios[i])) {
+                    std::cout << "Ratios are NaN" << std::endl;
+                    exit(1);
+                }
+            }
+
+            // advantages
+            float h_advantages[env_max_steps];
+            cudaMemcpy(h_advantages, rollout.advantages, env_max_steps * sizeof(float), cudaMemcpyDeviceToHost);
+            
+            for (int i = 0; i < env_max_steps; ++i) {
+                if (std::isnan(h_advantages[i])) {
+                    std::cout << "Advantages are NaN" << std::endl;
+                    exit(1);
+                }
+            }
+*/
+
+            float *d_surrogate;
+            cudaMalloc(&d_surrogate, policy_output_dim * sizeof(float));
+            policy_network->surrogate_loss(d_ratios, rollout.advantages, d_surrogate);
+
+
+            float h_surrogate[policy_output_dim];
+            cudaMemcpy(h_surrogate, d_surrogate, policy_output_dim * sizeof(float), cudaMemcpyDeviceToHost);
+
+            for (int i = 0; i < policy_output_dim; ++i) {
+                if (std::isnan(h_surrogate[i])) {
+                    std::cout << "Surrogate loss is NaN" << std::endl;
+                    exit(1);
+                }
+            }
+
+            // update the parameters 
+            policy_network->backward(d_surrogate, policy_network->learning_rate);
+
+            float *d_value_grads;
+            cudaMalloc(&d_value_grads, policy_output_dim * sizeof(float));
+
+            // caclulating the value grad with teh new func i made which I hope works correctly
+            compute_value_grad(rollout.values, rollout.returns, d_value_grads, env_max_steps);
+
+            value_network->backward(d_value_grads, value_network->learning_rate);
+
+
+            // sum up the d_surrogate
+            // float h_surrogate[policy_output_dim];
+            cudaMemcpy(h_surrogate, d_surrogate, policy_output_dim * sizeof(float), cudaMemcpyDeviceToHost);
+
+
+            FILE *f = fopen("pi_loss.txt", "a");
+
+            // float max_val = h_surrogate[0];
+            for (int k = 0; k < policy_output_dim; ++k) {
+                fprintf(f, "%f ", h_surrogate[k]);
+            }
+            fprintf(f, "\n");
+            
+            
+
+
+        /*
+
+
+            // print d_value_grads and d_surrogate
+            std::vector<float> h_value_grads(env_max_steps);
+            std::vector<float> h_surrogate(env_max_steps);
+
+            cudaMemcpy(h_value_grads.data(), d_value_grads, env_max_steps * sizeof(float), cudaMemcpyDeviceToHost);
+            cudaMemcpy(h_surrogate.data(), d_surrogate, env_max_steps * sizeof(float), cudaMemcpyDeviceToHost);
+
+            std::cout << "Value grads: ";
+            for (const auto& val : h_value_grads) {
+                std::cout << val << " ";
+            }
+            std::cout << std::endl;
+
+            std::cout << "Surrogate: ";
+            for (const auto& val : h_surrogate) {
+                std::cout << val << " ";
+            }
+            std::cout << std::endl;
+
+        */
+
+            // Free allocated memory
+            cudaFree(d_ratios);
+            cudaFree(d_surrogate);
+        }
+
+
     }
-
-
-
 
 }
 

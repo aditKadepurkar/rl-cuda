@@ -1,5 +1,5 @@
 CC = nvcc
-CFLAGS = -arch=sm_89 -std=c++11 -O2
+CFLAGS = -arch=sm_89 -std=c++17 -O2
 OBJ_DIR = ../build
 
 $(shell mkdir -p $(OBJ_DIR))

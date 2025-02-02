@@ -2,3 +2,4 @@
 *.[^a-zA-Z0-9]*
 setup_agate.txt
 .vscode/
+libtorch

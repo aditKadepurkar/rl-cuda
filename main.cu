@@ -7,8 +7,8 @@
 #define NUM_STEPS 100
 
 int main() {
-    int state_size = 10;
-    int action_dim = 5;
+    int state_size = 2;
+    int action_dim = 1;
 
     Environment env(state_size, action_dim);
 
@@ -32,7 +32,7 @@ int main() {
 
 
     std::cout << "Training has started." << std::endl;
-    ppo.train(100);
+    ppo.train(10000);
     std::cout << "Training has finished." << std::endl;
 
 

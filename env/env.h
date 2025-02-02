@@ -18,7 +18,7 @@ public:
     __host__ void step(float* action, float* d_next_state, float* d_reward, bool* d_done);
     int state_size;
     int action_size;
-    int max_steps = 10;
+    int max_steps = 100;
 
 private:
     int current_step = 1;

@@ -39,8 +39,8 @@ private:
     MLP* value_network;
     Environment* env;
     std::vector<Rollout> rollout_buffer;
-    int ROLLOUT_BUFFER_SIZE = 10;
-    int env_max_steps = 10;
+    int ROLLOUT_BUFFER_SIZE = 100;
+    int env_max_steps = 100;
     bool is_vecenv = false;
 };
 

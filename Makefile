@@ -5,6 +5,7 @@ OBJ_DIR = build
 TARGET = main
 CUDA_LIBS = -lcublas -lcudnn -lcurand
 
+
 $(shell mkdir -p $(OBJ_DIR))
 
 all: $(TARGET)

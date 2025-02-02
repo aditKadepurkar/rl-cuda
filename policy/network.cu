@@ -8,7 +8,10 @@
 #include "network.h"
 #include <iostream>
 #include <cuda_runtime.h>
-#include <curand.h>
+#include <vector>
+#include <curand_kernel.h>
+#include <thrust/device_vector.h>
+#include <thrust/transform.h>
 
 // basic gradient descent update
 __global__ void update_kernel(float* param, const float* grad, float learning_rate, int n) {
@@ -38,9 +41,12 @@ __global__ void log_prob_kernel(const float* means, const float* actions, float*
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < n) {
         float diff = actions[idx] - means[idx];
+        
+        const float epsilon = 1e-6f;
+        float squared_diff = diff * diff + epsilon;
 
-        float constant = 0.5f * logf(2.0f * 3.14159265f); // maybe i should add some more digits of pi
-        log_probs[idx] = -0.5f * diff * diff - constant;
+        float constant = 0.5f * logf(2.0f * 3.14159265f);
+        log_probs[idx] = -0.5f * squared_diff - constant;
     }
 }
 
@@ -77,6 +83,7 @@ MLP::MLP(const std::vector<int>& layers) : layerSizes(layers) {
     initializeLayers();
 }
 
+
 void MLP::initializeLayers() {
     curandGenerator_t randGen;
     curandCreateGenerator(&randGen, CURAND_RNG_PSEUDO_DEFAULT);
@@ -87,11 +94,13 @@ void MLP::initializeLayers() {
         int outputSize = layerSizes[i + 1];
 
         float *d_weights, *d_biases, *d_activations;
-        cudaMalloc(&d_weights, inputSize * outputSize * sizeof(float));
-        cudaMalloc(&d_biases, outputSize * sizeof(float));
-        cudaMalloc(&d_activations, outputSize * sizeof(float));
+        if (cudaMalloc(&d_weights, inputSize * outputSize * sizeof(float)) != cudaSuccess ||
+            cudaMalloc(&d_biases, outputSize * sizeof(float)) != cudaSuccess ||
+            cudaMalloc(&d_activations, outputSize * sizeof(float)) != cudaSuccess) {
+            std::cerr << "CUDA malloc failed!" << std::endl;
+            exit(1);
+        }
 
-        // Initialize weights and biases with random values
         curandGenerateUniform(randGen, d_weights, inputSize * outputSize);
         curandGenerateUniform(randGen, d_biases, outputSize);
 
@@ -102,6 +111,7 @@ void MLP::initializeLayers() {
 
     curandDestroyGenerator(randGen);
 }
+
 
 void MLP::forward(float* input, float* output) {
 
@@ -115,7 +125,7 @@ void MLP::forward(float* input, float* output) {
         int outputSize = layerSizes[i + 1];
 
         // Perform matrix multiplication: Y = W * X + B
-        cublasSgemm(
+        cublasStatus_t status = cublasSgemm(
             cublas, CUBLAS_OP_N, CUBLAS_OP_N,
             outputSize, 1, inputSize,
             &alpha,
@@ -125,12 +135,37 @@ void MLP::forward(float* input, float* output) {
             activations[i], outputSize // Y: (outputSize, 1)
         );
 
+        // Check for errors in cublasSgemm
+        if (status != CUBLAS_STATUS_SUCCESS) {
+            std::cerr << "cublasSgemm failed with error code " << status << std::endl;
+            exit(1);
+        }
+
         cublasSaxpy(cublas, outputSize, &alpha, biases[i], 1, activations[i], 1);
+
+        // Check if activations contain NaN after bias addition
+        checkForNaN(activations[i], outputSize);
 
         currInput = activations[i];
     }
 
-    cudaMemcpy(output, activations.back(), layerSizes.back() * sizeof(float), cudaMemcpyDeviceToHost);
+    checkForNaN(activations.back(), layerSizes.back());
+    cudaMemcpy(output, activations.back(), layerSizes.back() * sizeof(float), cudaMemcpyDeviceToDevice);
+}
+
+// Helper function to check for NaN values in a CUDA array
+void MLP::checkForNaN(float* data, int size) {
+    float* hostData = new float[size];
+    cudaMemcpy(hostData, data, size * sizeof(float), cudaMemcpyDeviceToHost);
+
+    for (int i = 0; i < size; ++i) {
+        if (std::isnan(hostData[i])) {
+            std::cerr << "NaN detected in activation at index " << i << std::endl;
+            exit(1);
+        }
+    }
+
+    delete[] hostData;
 }
 
 // In network.cu
